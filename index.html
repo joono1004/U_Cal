@@ -1,541 +1,1136 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>실적 계산기</title>
-  <style>
-    :root{
-      --bg:#f6f7fb;
-      --card:#ffffff;
-      --text:#111827;
-      --muted:#6b7280;
-      --line:#e5e7eb;
-      --accent:#2563eb;
-      --radius:16px;
-    }
+<meta charset="UTF-8">
+<title>실적 계산기</title>
 
-    *{ box-sizing:border-box; }
-    body{
-      margin:0;
-      background:var(--bg);
-      color:var(--text);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif;
-    }
+<style>
+  /* ✅ 전체 가로/여백 컴팩트 */
+  body{font-family:Arial; padding:14px;}
+  table{
+    border-collapse:collapse;
+    width:100%;
+    table-layout:fixed;
+  }
+  th,td{
+    border:1px solid #ccc;
+    padding:6px 6px;
+    text-align:center;
+    vertical-align:middle;
+    font-size:13px;
+  }
+  th{
+    background:#f2f2f2;
+    white-space:nowrap;
+  }
 
-    .wrap{
-      max-width: 1180px;
-      margin: 28px auto;
-      padding: 0 16px 40px;
-    }
+  /* ✅ 칼럼 폭(요청: BC/좌점/우점 = '좌측 실적이월'과 동일한 폭으로 맞춤) */
+  col.bc    { width:105px; }     /* ✅ carry(좌측 실적이월)와 동일 */
+  col.score { width:105px; }     /* ✅ carry(좌측 실적이월)와 동일 */
+  col.carry { width:105px; }
+  col.sum   { width:86px; }
+  col.ack   { width:86px; }
+  col.bonus { width:105px; }
 
-    .top{
-      display:flex;
-      align-items:flex-end;
-      justify-content:space-between;
-      gap:12px;
-      flex-wrap:wrap;
-      margin-bottom:14px;
-    }
-    h1{
-      margin:0;
-      font-size:22px;
-      letter-spacing:-0.2px;
-    }
-    .sub{
-      margin:6px 0 0;
-      color:var(--muted);
-      font-size:13px;
-      line-height:1.4;
-    }
+  /* 숫자 입력 스피너 제거 */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+  input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
 
-    /* 카드 */
-    .card{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      box-shadow: 0 10px 30px rgba(17,24,39,0.06);
-      padding:16px;
-    }
-    .stack{ display:grid; gap:12px; }
+  /* ✅ 입력/셀렉트 폭(칼럼 폭에 맞춰 축소) */
+  input{width:68px; text-align:center;}
+  select{width:86px;}
 
-    /* 입력 영역 (1. 카드로 묶기) */
-    .toolbar{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
-    .field{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      min-width:260px;
-    }
-    label{
-      font-size:12px;
-      color:var(--muted);
-    }
-    input[type="text"], input[type="number"]{
-      height:40px;
-      border:1px solid var(--line);
-      border-radius:12px;
-      padding:0 12px;
-      font-size:14px;
-      outline:none;
-      background:#fff;
-    }
-    input[type="text"]:focus, input[type="number"]:focus{
-      border-color: rgba(37,99,235,0.45);
-      box-shadow: 0 0 0 4px rgba(37,99,235,0.12);
-    }
+  .blue{color:blue; font-weight:bold;}
+  .mini{font-size:11px; color:#666; margin-top:3px;}
+  .scoreCell{display:flex; flex-direction:column; align-items:center; gap:3px;}
+  .mainScore{font-size:inherit; font-weight:normal;}
 
-    /* 4. 버튼 2종(기본/포인트) */
-    .btn{
-      height:40px;
-      padding:0 14px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background:#f3f4f6;
-      color:#111827;
-      font-weight:700;
-      cursor:pointer;
-      user-select:none;
-      white-space:nowrap;
-    }
-    .btn:active{ transform: translateY(1px); }
-    .btn.primary{
-      background:var(--accent);
-      border-color:var(--accent);
-      color:#fff;
-    }
+  .totalRow td{background:#fafafa; font-weight:bold;}
+  .totalLabel{text-align:right; padding-right:10px;}
 
-    /* 3. KPI 카드 */
-    .kpi{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-    }
-    @media (max-width: 860px){
-      .kpi{ grid-template-columns: 1fr; }
-    }
-    .kpi .box{
-      background: linear-gradient(180deg, rgba(37,99,235,0.08), rgba(37,99,235,0.04));
-      border:1px solid rgba(37,99,235,0.18);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-    }
-    .kpi .label{
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    .kpi .value{
-      font-size: 24px;
-      font-weight: 900;
-      letter-spacing: -0.3px;
-      font-variant-numeric: tabular-nums;
-    }
+  /* ✅ 상단(사용자ID 줄) 정렬 */
+  .headRow{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:10px;
+    font-size:13px;
+  }
+  .headRow .spacer{ flex:1; }
+  .resetBtn{
+    padding:6px 10px;
+    border:1px solid #ccc;
+    background:#fff;
+    cursor:pointer;
+    border-radius:6px;
+    font-size:13px;
+    white-space:nowrap;
+  }
+  .resetBtn:hover{ background:#f7f7f7; }
 
-    /* 테이블 */
-    .tableHead{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-bottom:10px;
-    }
-    .tableHead .title{
-      font-size:14px;
-      font-weight:800;
-    }
-    table{
-      width:100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      overflow:hidden;
-      border:1px solid var(--line);
-      border-radius: var(--radius);
-      background:#fff;
-    }
-    thead th{
-      position: sticky;
-      top: 0;
-      background:#f9fafb;
-      font-size: 12px;
-      color: #374151;
-      text-align:left;
-      padding: 10px 10px;
-      border-bottom:1px solid var(--line);
-      white-space: nowrap;
-    }
-    tbody td{
-      padding: 8px 10px;
-      border-bottom:1px solid var(--line);
-      font-size: 13px;
-      vertical-align: middle;
-    }
-    tbody tr:nth-child(even){ background:#fafafa; }
+  /* ✅ +추가 BC 버튼: 컴팩트 */
+  #addCenterBtn{
+    padding:4px 8px;
+    font-size:12px;
+    border-radius:8px;
+    line-height:1.1;
+  }
 
-    /* 2. 숫자 우측정렬 + 동일 폭 */
-    .num{ text-align:right; font-variant-numeric: tabular-nums; }
-    .w-id{ width:140px; }
-    .w-in{ width:120px; }
-    .w-out{ width:130px; }
+  /* ✅ 비즈니스센터 셀: 폭이 줄어도 안전(줄임표) */
+  .bcCell{
+    position:relative;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    padding:2px 12px 2px 12px;
+    border-radius:6px;
+    transition:background .12s ease;
+  }
+  .bcCell:hover{ background:#f3f6ff; }
 
-    /* 입력칸 테이블 내부 */
-    .tin{
-      width: 100%;
-      min-width: 0;
-      height: 36px;
-      padding: 0 10px;
-      border-radius: 10px;
-    }
+  .bcText{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    width:100%;
+    max-width:92px;             /* ✅ bc col(105) 안에서 안전 */
+  }
 
-    /* 5. 도식(트리) 박스 + 라인 스타일 통일 */
-    .diagramWrap{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:10px;
-    }
-    .diagram{
-      padding: 14px 16px;
-      border:1px dashed rgba(107,114,128,0.35);
-      border-radius: var(--radius);
-      background: #fbfbff;
-      overflow:auto;
-    }
-    .tree{
-      display:flex;
-      align-items:flex-start;
-      gap:24px;
-      flex-wrap:wrap;
-    }
-    .node{
-      min-width: 180px;
-      border:1px solid var(--line);
-      border-radius:14px;
-      background:#fff;
-      padding:10px 12px;
-      box-shadow: 0 8px 18px rgba(17,24,39,0.06);
-      position:relative;
-    }
-    .node .nid{
-      font-weight:900;
-      font-size:13px;
-      margin-bottom:6px;
-    }
-    .node .row{
-      display:flex;
-      justify-content:space-between;
-      font-size:12px;
-      color:#374151;
-      gap:10px;
-    }
-    .node .row span:last-child{
-      font-variant-numeric: tabular-nums;
-      font-weight:800;
-    }
-    .link{
-      width:24px;
-      height:2px;
-      background: rgba(107,114,128,0.35);
-      margin: 20px 0 0;
-      border-radius:2px;
-    }
-    .hint{
-      font-size:12px;
-      color:var(--muted);
-      margin:0;
-    }
-  </style>
+  .bcId{
+    display:block;
+    width:100%;
+    font-size:11px;             /* ✅ 더 축소 */
+    font-weight:800;
+    letter-spacing:-0.2px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    line-height:1.1;
+  }
+
+  .bcMini{
+    font-size:10px;
+    color:#666;
+    margin-top:2px;
+    white-space:nowrap;
+    line-height:1.1;
+  }
+
+  /* ✅ X 버튼 */
+  .delBtn{
+    position:absolute;
+    right:4px;
+    top:3px;
+
+    background:transparent;
+    border:none;
+    cursor:pointer;
+
+    width:18px;
+    height:18px;
+    border-radius:50%;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    font-size:12px;
+    line-height:1;
+    padding:0;
+
+    color:#800;
+    font-weight:800;
+
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .12s ease, background-color .12s ease, box-shadow .12s ease;
+  }
+  .bcCell:hover .delBtn,
+  .delBtn:focus-visible{
+    opacity:1;
+    pointer-events:auto;
+  }
+  .delBtn:hover{
+    background:#ffeaea;
+    box-shadow:0 0 0 1px #f2b6b6 inset;
+  }
+
+  /* 비활성 입력 시각화 */
+  input:disabled{
+    background:#f5f5f5;
+    color:#aaa;
+  }
+
+  /* 하이라이트 */
+  .hl{
+    box-shadow: inset 0 0 0 2px #ffb000;
+    background: #fff7d6;
+    border-color:#ffb000 !important;
+  }
+
+  /* ✅ 도식 영역 */
+  .diagramWrap{ margin-top:14px; }
+  .diagramTitle{ font-weight:700; margin:10px 0 6px; }
+
+  /* ===========================
+     ✅ 도식: 조직도(Org Chart) UI
+     =========================== */
+  .diagramUI{
+    border:1px solid #e5e7eb;
+    background: linear-gradient(180deg, #ffffff, #fbfbff);
+    padding:14px;
+    border-radius:12px;
+    overflow:auto;
+  }
+  .orgWrap{ min-width: 980px; }
+  .orgTop{
+    display:flex;
+    justify-content:center;
+    margin-bottom:14px;
+  }
+  .orgRow{
+    display:flex;
+    gap:26px;
+    align-items:flex-start;
+    justify-content:space-between;
+  }
+  .orgCol{
+    flex:1;
+    min-width: 420px;
+    padding:12px;
+    border-radius:14px;
+    border:1px solid #eef0f6;
+    background:#ffffff;
+    box-shadow: 0 8px 22px rgba(0,0,0,.04);
+  }
+  .orgColTitle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+    font-weight:800;
+    color:#111827;
+  }
+  .orgBadge{
+    font-size:11px;
+    padding:2px 10px;
+    border-radius:999px;
+    border:1px solid #e6e6e6;
+    background:#f8fafc;
+    color:#374151;
+  }
+
+  .orgNode{
+    display:inline-flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    padding:10px 12px;
+    border-radius:14px;
+    border:1px solid #e6e6e6;
+    background:#fff;
+    box-shadow: 0 10px 26px rgba(0,0,0,.07);
+    min-width: 230px;
+    position:relative;
+
+    --shiftL: 0px;
+    --shiftR: 0px;
+  }
+  .orgNode .id{ font-weight:900; letter-spacing:.2px; }
+  .orgNode .meta{ font-size:12px; color:#6b7280; }
+
+  .sidePill{
+    font-size:11px;
+    font-weight:900;
+    padding:2px 8px;
+    border-radius:999px;
+    border:1px solid #e6e6e6;
+    background:#f8fafc;
+    color:#111827;
+    margin-top:2px;
+  }
+  .sidePill.L{ background:#eef2ff; border-color:#dbeafe; color:#1d4ed8; }
+  .sidePill.R{ background:#fff7ed; border-color:#fed7aa; color:#c2410c; }
+
+  .nodeTotals{
+    display:flex;
+    gap:10px;
+    margin-top:6px;
+    justify-content:center;
+  }
+  .scoreBadge{
+    font-size:12px;
+    font-weight:800;
+    padding:4px 10px;
+    border-radius:10px;
+    border:1px solid #e6e6e6;
+    background:#f8fafc;
+    color:#111827;
+    white-space:nowrap;
+  }
+  .scoreBadge .k{
+    font-size:11px;
+    font-weight:900;
+    margin-right:6px;
+    opacity:.75;
+  }
+  .scoreBadge.L{ background:#eef2ff; border-color:#dbeafe; color:#1d4ed8; }
+  .scoreBadge.R{ background:#fff7ed; border-color:#fed7aa; color:#c2410c; }
+
+  .scoreBadge.cap{
+    border:2px solid #1d4ed8;
+    box-shadow: 0 0 0 1px #1d4ed8 inset;
+  }
+
+  .nodeLine{
+    display:grid;
+    grid-template-columns: auto auto;
+    justify-content:center;
+    column-gap:18px;
+    width:100%;
+    margin-top:6px;
+  }
+  .nodeLine.main,
+  .nodeLine.carry{
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.1px;
+    color:#374151;
+  }
+
+  .val{
+    display:block;
+    text-align:right;
+    min-width:6ch;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  .carryCell{
+    position:relative;
+    width:6ch;
+    justify-self:end;
+  }
+  .carryLabel{
+    position:absolute;
+    left:-52px;
+    top:0;
+    opacity:.75;
+    font-weight:600;
+    color:#4b5563;
+    white-space:nowrap;
+    pointer-events:none;
+  }
+  .carryVal{
+    display:block;
+    width:100%;
+    text-align:right;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  .orgNode .nodeLine.main > :nth-child(1){ transform: translateX(var(--shiftL)); }
+  .orgNode .nodeLine.main > :nth-child(2){ transform: translateX(var(--shiftR)); }
+  .orgNode .carryVal{ transform: translateX(var(--shiftL)); }
+  .orgNode .nodeLine.carry > :nth-child(2){ transform: translateX(var(--shiftR)); }
+
+  .orgTree{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+  }
+  .orgTree.hasChildren > .orgNode::after{
+    content:"";
+    position:absolute;
+    left:50%;
+    top:100%;
+    transform:translateX(-50%);
+    width:2px;
+    height:14px;
+    background:#e5e7eb;
+    border-radius:999px;
+  }
+
+  .orgChildrenLR{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:18px;
+    align-items:start;
+    justify-content:center;
+    width:100%;
+    padding-top:18px;
+    position:relative;
+  }
+  .orgChildrenLR::before{
+    content:"";
+    position:absolute;
+    left:50%;
+    top:8px;
+    transform:translateX(-50%);
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    background:#e5e7eb;
+  }
+
+  .orgLane{
+    border:1px dashed #e5e7eb;
+    border-radius:14px;
+    padding:12px 10px 10px;
+    background:#fafafa;
+    position:relative;
+  }
+  .orgLaneTitle{
+    display:flex;
+    justify-content:center;
+    margin-bottom:10px;
+  }
+  .orgLaneTitle .lanePill{
+    font-size:11px;
+    font-weight:900;
+    padding:3px 10px;
+    border-radius:999px;
+    border:1px solid #e6e6e6;
+    background:#fff;
+    color:#111827;
+  }
+  .orgLaneTitle .lanePill.L{ background:#eef2ff; border-color:#dbeafe; color:#1d4ed8; }
+  .orgLaneTitle .lanePill.R{ background:#fff7ed; border-color:#fed7aa; color:#c2410c; }
+
+  .orgLane.L::before,
+  .orgLane.R::before{
+    content:"";
+    position:absolute;
+    top:8px;
+    height:2px;
+    background:#e5e7eb;
+  }
+  .orgLane.L::before{ right:0; width:50%; }
+  .orgLane.R::before{ left:0; width:50%; }
+
+  .orgLaneBody{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+  }
+
+  .orgLegend{
+    margin-top:12px;
+    font-size:12px;
+    color:#6b7280;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .orgLegend b{ color:#111827; }
+
+  .diagramEmpty{
+    color:#6b7280;
+    font-size:13px;
+  }
+</style>
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <h1>실적 계산기</h1>
-        <p class="sub">사용자 ID 생성 → 비즈니스센터(BC) 추가 → 자동 합산/원화환산/도식 표시</p>
-      </div>
-    </div>
 
-    <div class="stack">
-      <!-- (1) 입력 영역 카드 -->
-      <section class="card">
-        <div class="toolbar">
-          <div class="field">
-            <label for="userId">사용자 ID</label>
-            <input id="userId" type="text" placeholder="예) user123" />
-          </div>
+<h2>실적 계산기</h2>
 
-          <button class="btn primary" id="btnCreate">생성</button>
-          <button class="btn" id="btnReset">점수 초기화</button>
+<div class="headRow">
+  <div>사용자 ID 입력 :</div>
+  <input type="number" id="userId">
+  <button onclick="createRows()">생성</button>
 
-          <p class="hint" style="margin-left:auto;">
-            ※ 숫자 칸은 자동 합산됩니다.
-          </p>
-        </div>
-      </section>
+  <div class="spacer"></div>
 
-      <!-- (3) KPI 카드 -->
-      <section class="kpi">
-        <div class="box">
-          <div class="label">총합계 (인정실적)</div>
-          <div class="value" id="kpiTotal">0</div>
-        </div>
-        <div class="box">
-          <div class="label">원화 환산 금액 (예상 발생수당 × 1150)</div>
-          <div class="value" id="kpiKrw">0</div>
-        </div>
-      </section>
+  <button class="resetBtn" id="resetScoresBtn" onclick="resetScores()" style="display:none;">
+    점수 초기화
+  </button>
+</div>
 
-      <!-- 테이블 카드 -->
-      <section class="card">
-        <div class="tableHead">
-          <div class="title">비즈니스센터 실적 입력</div>
-          <button class="btn primary" id="btnAddBc">＋ 추가 BC</button>
-        </div>
+<table>
+  <colgroup>
+    <col class="bc">
+    <col class="score">
+    <col class="score">
+    <col class="carry">
+    <col class="carry">
+    <col class="sum">
+    <col class="sum">
+    <col class="ack">
+    <col class="bonus">
+  </colgroup>
 
-        <div style="overflow:auto;">
-          <table>
-            <thead>
-              <tr>
-                <th class="w-id">비즈니스센터</th>
-                <th class="w-in num">왼쪽 점수</th>
-                <th class="w-in num">오른쪽 점수</th>
-                <th class="w-in num">좌측 실적이월</th>
-                <th class="w-in num">우측 실적이월</th>
-                <th class="w-out num">왼쪽 합계</th>
-                <th class="w-out num">오른쪽 합계</th>
-                <th class="w-out num">인정실적</th>
-                <th class="w-out num">예상 발생수당</th>
-              </tr>
-            </thead>
-            <tbody id="bcBody">
-              <!-- JS로 행 생성 -->
-            </tbody>
-          </table>
-        </div>
-      </section>
+<thead>
+<tr>
+  <th>비즈니스센터</th>
+  <th>왼쪽 점수</th>
+  <th>오른쪽 점수</th>
+  <th>좌측 실적이월</th>
+  <th>우측 실적이월</th>
+  <th>왼쪽 합계</th>
+  <th>오른쪽 합계</th>
+  <th>인정실적</th>
+  <th>예상 발생수당</th>
+</tr>
+</thead>
 
-      <!-- (5) 도식 카드 -->
-      <section class="card diagramWrap">
-        <div style="font-weight:900; font-size:14px;">도식</div>
-        <div class="diagram" id="diagram">
-          <p class="hint" id="diagramHint">사용자 ID를 입력 후 생성하면 도식이 표시됩니다.</p>
-        </div>
-      </section>
-    </div>
+<tbody id="tableBody"></tbody>
+
+<tfoot>
+<tr class="totalRow">
+  <td>
+    <button id="addCenterBtn" onclick="addCenter()" style="display:none;">
+      ＋ 추가 BC
+    </button>
+  </td>
+  <td class="totalLabel" colspan="6">총합계</td>
+  <td><span id="totalAck">0</span></td>
+  <td><span id="totalBonus">0.0</span></td>
+</tr>
+
+<tr class="totalRow">
+  <td></td>
+  <td class="totalLabel" colspan="6">원화 환산 금액</td>
+  <td></td>
+  <td><span id="totalBonusKrw">0</span></td>
+</tr>
+</tfoot>
+</table>
+
+<div class="diagramWrap">
+  <div class="diagramTitle">도식</div>
+  <div id="diagram" class="diagramUI">
+    <div class="diagramEmpty">사용자 ID를 입력 후 생성하면 도식이 표시됩니다.</div>
   </div>
+</div>
 
-  <script>
-    // ===== 유틸 =====
-    const fmt = (n) => {
-      const x = Number(n || 0);
-      return x.toLocaleString("ko-KR");
+<script>
+/* ===== 상태 ===== */
+let mergeTarget = {};
+let lastExtraPos = null;
+let centerCount = 3;
+let highlightBySource = {};
+
+/* ===== DOM 헬퍼 ===== */
+const $ = (id) => document.getElementById(id);
+
+/* ===== 입력 UX ===== */
+function clearZeroOnFocus(el){ if(el.value === "0") el.value = ""; }
+function restoreZeroOnBlur(el){ if(el.value === "") el.value = "0"; }
+
+/* ===== 숫자 유틸 ===== */
+function parseNum(v){
+  const s = String(v ?? "0").replace(/,/g, "").trim();
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+function fmtInt(n){ return parseNum(n).toLocaleString("en-US"); }
+function fmt1(n){
+  return parseNum(n).toLocaleString("en-US", {minimumFractionDigits:1, maximumFractionDigits:1});
+}
+function getVal(id){
+  const el = $(id);
+  if(!el) return 0;
+  if(el.value !== undefined) return parseNum(el.value);
+  return parseNum(el.innerText);
+}
+function setText(id, t){
+  const el = $(id);
+  if(el) el.innerText = t;
+}
+function displayWithLimit(el, v){
+  if(!el) return;
+  el.innerText = fmtInt(v);
+  if(v === 5000) el.classList.add("blue");
+  else el.classList.remove("blue");
+}
+
+/* ✅ 입력 상한(0~5000) 강제 */
+function clamp5000(el){
+  if(!el) return;
+  let v = parseNum(el.value);
+  if(v > 5000) v = 5000;
+  if(v < 0) v = 0;
+  el.value = String(v);
+}
+
+/* ===== 추가센터 입력 활성/비활성 ===== */
+function toggleInputsByPos(pos, enabled){
+  ["l","r","cl","cr"].forEach(prefix=>{
+    const el = $(`${prefix}${pos}`);
+    if(el) el.disabled = !enabled;
+  });
+}
+
+/* ===== 점수 셀 템플릿(일반) ===== */
+function scoreCellHTML(pos, side){
+  const dispId = side === "l" ? `displ${pos}` : `dispr${pos}`;
+  const inputId = side === "l" ? `l${pos}` : `r${pos}`;
+  const subId  = side === "l" ? `addl${pos}` : `addr${pos}`;
+
+  return `
+    <div class="scoreCell">
+      <span class="mainScore" id="${dispId}">0</span>
+      <input type="number" value="0" min="0" max="5000"
+        onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)"
+        oninput="clamp5000(this); calc()" id="${inputId}">
+      <div class="mini">하위 점수: <span id="${subId}">0</span></div>
+    </div>
+  `;
+}
+
+/* ===== 점수 셀 템플릿(001 전용) ===== */
+function scoreCell001HTML(side){
+  const dispId = side === "l" ? "l001" : "r001";
+  const inputId = side === "l" ? "l001_in" : "r001_in";
+  const subId  = side === "l" ? "addl001" : "addr001";
+
+  return `
+    <div class="scoreCell">
+      <span class="mainScore" id="${dispId}">0</span>
+      <input type="number" value="0" min="0" max="5000"
+        onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)"
+        oninput="clamp5000(this); calc()" id="${inputId}">
+      <div class="mini">하위 점수: <span id="${subId}">0</span></div>
+    </div>
+  `;
+}
+
+/* ===== 위치 옵션 ===== */
+function buildTargetOptions(currentPos){
+  const curNum = Number(currentPos);
+  let html = `<option value="">선택</option>`;
+  for(let n=2; n<=curNum-1; n++){
+    const p = String(n).padStart(3,"0");
+    html += `<option value="l${p}">${p} 왼쪽</option>`;
+    html += `<option value="r${p}">${p} 오른쪽</option>`;
+  }
+  return html;
+}
+
+/* ===== 하이라이트 ===== */
+function cellIdFromTarget(t){
+  if(!t) return null;
+  const side = t[0];
+  const pos = t.slice(1);
+  return side === "l" ? `tdl${pos}` : `tdr${pos}`;
+}
+function clearHighlightForSource(srcPos){
+  const prevT = highlightBySource[srcPos];
+  if(!prevT) return;
+  const cid = cellIdFromTarget(prevT);
+  const el = cid ? $(cid) : null;
+  if(el) el.classList.remove("hl");
+  delete highlightBySource[srcPos];
+}
+function setHighlightForSource(srcPos, newT){
+  clearHighlightForSource(srcPos);
+  if(!newT) return;
+  const cid = cellIdFromTarget(newT);
+  const el = cid ? $(cid) : null;
+  if(el) el.classList.add("hl");
+  highlightBySource[srcPos] = newT;
+}
+
+/* ===== 생성(001~003) ===== */
+function createRows(){
+  const id = parseNum($("userId").value);
+  if(!id) return;
+
+  $("tableBody").innerHTML = "";
+  centerCount = 3;
+  mergeTarget = {};
+  lastExtraPos = null;
+  highlightBySource = {};
+
+  ["001","002","003"].forEach(pos=>{
+    const tr = document.createElement("tr");
+    tr.id = `row${pos}`;
+
+    if(pos === "001"){
+      tr.innerHTML = `
+        <td><span class="bcId" title="${id}.${pos}">${id}.${pos}</span></td>
+        <td id="tdl001">${scoreCell001HTML("l")}</td>
+        <td id="tdr001">${scoreCell001HTML("r")}</td>
+        <td><input type="number" value="0" min="0" max="5000"
+              onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)"
+              oninput="clamp5000(this); calc()" id="cl001"></td>
+        <td><input type="number" value="0" min="0" max="5000"
+              onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)"
+              oninput="clamp5000(this); calc()" id="cr001"></td>
+        <td><span id="sumL001">0</span></td>
+        <td><span id="sumR001">0</span></td>
+        <td><span id="ack001">0</span></td>
+        <td><span id="bonus001">0.0</span></td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td><span class="bcId" title="${id}.${pos}">${id}.${pos}</span></td>
+        <td id="tdl${pos}">${scoreCellHTML(pos,"l")}</td>
+        <td id="tdr${pos}">${scoreCellHTML(pos,"r")}</td>
+        <td><input type="number" value="0" min="0" max="5000"
+              onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)"
+              oninput="clamp5000(this); calc()" id="cl${pos}"></td>
+        <td><input type="number" value="0" min="0" max="5000"
+              onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)"
+              oninput="clamp5000(this); calc()" id="cr${pos}"></td>
+        <td><span id="sumL${pos}">0</span></td>
+        <td><span id="sumR${pos}">0</span></td>
+        <td><span id="ack${pos}">0</span></td>
+        <td><span id="bonus${pos}">0.0</span></td>
+      `;
+    }
+
+    $("tableBody").appendChild(tr);
+  });
+
+  $("addCenterBtn").style.display = "inline-block";
+  $("resetScoresBtn").style.display = "inline-block";
+
+  setText("addl001", "0");
+  setText("addr001", "0");
+
+  calc();
+}
+
+/* ===== 추가/삭제 ===== */
+function addCenter(){
+  const id = parseNum($("userId").value);
+  if(!id) return;
+
+  centerCount++;
+  const pos = String(centerCount).padStart(3,"0");
+  mergeTarget[pos] = "";
+
+  const tr = document.createElement("tr");
+  tr.id = `row${pos}`;
+
+  tr.innerHTML = `
+    <td>
+      <div class="bcCell">
+        <button class="delBtn" id="delBtn${pos}" onclick="deleteLastCenter()" style="display:none;" title="비즈니스센터 삭제">✕</button>
+        <div class="bcText">
+          <span class="bcId" title="${id}.${pos}">${id}.${pos}</span>
+          <div class="bcMini">위치:
+            <select id="target${pos}" onchange="setMerge('${pos}', this.value)">
+              ${buildTargetOptions(pos)}
+            </select>
+          </div>
+        </div>
+      </div>
+    </td>
+
+    <td id="tdl${pos}">${scoreCellHTML(pos,"l")}</td>
+    <td id="tdr${pos}">${scoreCellHTML(pos,"r")}</td>
+
+    <td><input type="number" value="0" min="0" max="5000" disabled
+      onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)"
+      oninput="clamp5000(this); calc()" id="cl${pos}"></td>
+
+    <td><input type="number" value="0" min="0" max="5000" disabled
+      onfocus="clearZeroOnFocus(this)" onblur="restoreZeroOnBlur(this)"
+      oninput="clamp5000(this); calc()" id="cr${pos}"></td>
+
+    <td><span id="sumL${pos}">0</span></td>
+    <td><span id="sumR${pos}">0</span></td>
+    <td><span id="ack${pos}">0</span></td>
+    <td><span id="bonus${pos}">0.0</span></td>
+  `;
+
+  $("tableBody").appendChild(tr);
+
+  toggleInputsByPos(pos, false);
+  $("l"+pos).disabled = true;
+  $("r"+pos).disabled = true;
+
+  if(lastExtraPos){
+    const prevBtn = $(`delBtn${lastExtraPos}`);
+    if(prevBtn) prevBtn.style.display = "none";
+  }
+  const curBtn = $(`delBtn${pos}`);
+  if(curBtn) curBtn.style.display = "inline-block";
+  lastExtraPos = pos;
+
+  calc();
+}
+
+function deleteLastCenter(){
+  if(centerCount < 4) return;
+
+  const pos = String(centerCount).padStart(3,"0");
+  clearHighlightForSource(pos);
+
+  const row = $(`row${pos}`);
+  if(row) row.remove();
+
+  delete mergeTarget[pos];
+  centerCount--;
+
+  if(centerCount >= 4){
+    lastExtraPos = String(centerCount).padStart(3,"0");
+    const btn = $(`delBtn${lastExtraPos}`);
+    if(btn) btn.style.display = "inline-block";
+  } else {
+    lastExtraPos = null;
+  }
+
+  calc();
+}
+
+function setMerge(pos, v){
+  mergeTarget[pos] = v;
+
+  const enabled = !!v;
+  toggleInputsByPos(pos, enabled);
+  $("l"+pos).disabled = !enabled;
+  $("r"+pos).disabled = !enabled;
+
+  setHighlightForSource(pos, v);
+  calc();
+}
+
+/* ✅ 점수 초기화(센터/위치 유지, 점수/이월만 0) */
+function resetScores(){
+  for(let n=1; n<=centerCount; n++){
+    const p = String(n).padStart(3,"0");
+    const cl = $(`cl${p}`); if(cl) cl.value = "0";
+    const cr = $(`cr${p}`); if(cr) cr.value = "0";
+  }
+  for(let n=2; n<=centerCount; n++){
+    const p = String(n).padStart(3,"0");
+    const l = $(`l${p}`); if(l) l.value = "0";
+    const r = $(`r${p}`); if(r) r.value = "0";
+  }
+  const l001 = $("l001_in"); if(l001) l001.value = "0";
+  const r001 = $("r001_in"); if(r001) r001.value = "0";
+
+  calc();
+}
+
+/* =========================
+   ✅ 도식(조직도) 아래 숫자 정렬(합계 배지는 건드리지 않음)
+   ========================= */
+function alignDiagramNumbers(){
+  const nodes = document.querySelectorAll("#diagram .orgNode");
+  if(!nodes.length) return;
+
+  nodes.forEach(node=>{
+    const badgeL = node.querySelector(".nodeTotals .scoreBadge.L");
+    const badgeR = node.querySelector(".nodeTotals .scoreBadge.R");
+    const kL = badgeL?.querySelector(".k");
+    const kR = badgeR?.querySelector(".k");
+
+    const mainL = node.querySelector(".nodeLine.main > :nth-child(1)");
+    const mainR = node.querySelector(".nodeLine.main > :nth-child(2)");
+    const carryL = node.querySelector(".carryVal");
+    const carryR = node.querySelector(".nodeLine.carry > :nth-child(2)");
+
+    if(!badgeL || !badgeR || !kL || !kR || !mainL || !mainR || !carryL || !carryR) return;
+
+    const numRight = (badge, kSpan) => {
+      const r = document.createRange();
+      r.setStartAfter(kSpan);
+      r.setEndAfter(badge.lastChild);
+      const rect = r.getBoundingClientRect();
+      return rect.width ? rect.right : badge.getBoundingClientRect().right;
     };
-    const num = (v) => {
-      const x = Number(String(v ?? "").replace(/,/g,""));
-      return Number.isFinite(x) ? x : 0;
-    };
 
-    // ===== 상태 =====
-    let rows = []; // {idSuffix, left, right, cLeft, cRight}
+    const badgeNumRightL = numRight(badgeL, kL);
+    const badgeNumRightR = numRight(badgeR, kR);
 
-    // ===== DOM =====
-    const $ = (id) => document.getElementById(id);
-    const userIdEl = $("userId");
-    const bcBody = $("bcBody");
-    const kpiTotal = $("kpiTotal");
-    const kpiKrw = $("kpiKrw");
-    const diagramEl = $("diagram");
-    const diagramHint = $("diagramHint");
+    const mainRightL = mainL.getBoundingClientRect().right;
+    const mainRightR = mainR.getBoundingClientRect().right;
 
-    // ===== 계산 규칙(필요시 주인님 규칙에 맞춰 수정 가능) =====
-    // 현재 기본: 왼합=왼쪽점수+좌측이월, 오른합=오른쪽점수+우측이월
-    // 인정실적=왼합+오른합, 예상발생수당=인정실적
-    // 원화=총 예상발생수당 * 1150
-    function calcRow(r){
-      const leftSum = num(r.left) + num(r.cLeft);
-      const rightSum = num(r.right) + num(r.cRight);
-      const 인정실적 = leftSum + rightSum;
-      const 수당 = 인정실적;
-      return { leftSum, rightSum, 인정실적, 수당 };
-    }
+    node.style.setProperty("--shiftL", `${badgeNumRightL - mainRightL}px`);
+    node.style.setProperty("--shiftR", `${badgeNumRightR - mainRightR}px`);
+  });
+}
 
-    // ===== 렌더 =====
-    function renderTable(){
-      bcBody.innerHTML = "";
+/* =========================
+   ✅ 도식(조직도) + 3줄 점수 표시
+   ========================= */
+function getUserId(){
+  const v = parseNum($("userId").value);
+  return v ? String(v) : "사용자ID";
+}
 
-      rows.forEach((r, idx) => {
-        const { leftSum, rightSum, 인정실적, 수당 } = calcRow(r);
+function buildChildrenMap(){
+  const children = {};
+  for(let n=4; n<=centerCount; n++){
+    const src = String(n).padStart(3,"0");
+    const t = mergeTarget[src];
+    if(!t) continue;
+    const side = (t[0] === "l") ? "L" : "R";
+    const parent = t.slice(1);
+    if(!children[parent]) children[parent] = [];
+    children[parent].push({pos: src, side});
+  }
+  Object.keys(children).forEach(k=>{
+    children[k].sort((a,b)=>Number(a.pos)-Number(b.pos));
+  });
+  return children;
+}
 
-        const tr = document.createElement("tr");
-
-        tr.innerHTML = `
-          <td class="w-id"><strong>${(userIdEl.value || "사용자").trim()}.${r.idSuffix}</strong></td>
-
-          <td class="num w-in">
-            <input class="tin" type="number" inputmode="numeric" min="0" value="${num(r.left)}" data-k="left" data-i="${idx}">
-          </td>
-          <td class="num w-in">
-            <input class="tin" type="number" inputmode="numeric" min="0" value="${num(r.right)}" data-k="right" data-i="${idx}">
-          </td>
-          <td class="num w-in">
-            <input class="tin" type="number" inputmode="numeric" min="0" value="${num(r.cLeft)}" data-k="cLeft" data-i="${idx}">
-          </td>
-          <td class="num w-in">
-            <input class="tin" type="number" inputmode="numeric" min="0" value="${num(r.cRight)}" data-k="cRight" data-i="${idx}">
-          </td>
-
-          <td class="num w-out">${fmt(leftSum)}</td>
-          <td class="num w-out">${fmt(rightSum)}</td>
-          <td class="num w-out"><strong>${fmt(인정실적)}</strong></td>
-          <td class="num w-out"><strong>${fmt(수당)}</strong></td>
-        `;
-
-        bcBody.appendChild(tr);
-      });
-
-      // 입력 이벤트 바인딩
-      bcBody.querySelectorAll("input.tin").forEach(inp => {
-        inp.addEventListener("input", (e) => {
-          const i = Number(e.target.dataset.i);
-          const k = e.target.dataset.k;
-          rows[i][k] = num(e.target.value);
-          updateAll();
-        });
-      });
-    }
-
-    function renderKpi(){
-      let totalPerf = 0;
-      let totalAllowance = 0;
-
-      rows.forEach(r => {
-        const c = calcRow(r);
-        totalPerf += c.인정실적;
-        totalAllowance += c.수당;
-      });
-
-      kpiTotal.textContent = fmt(totalPerf);
-      kpiKrw.textContent = fmt(totalAllowance * 1150);
-    }
-
-    function renderDiagram(){
-      const base = (userIdEl.value || "").trim();
-      if(!base){
-        diagramHint.style.display = "block";
-        diagramHint.textContent = "사용자 ID를 입력 후 생성하면 도식이 표시됩니다.";
-        return;
-      }
-
-      diagramHint.style.display = "none";
-      diagramEl.innerHTML = "";
-
-      // 노드 생성 헬퍼
-      const makeNode = (suffix) => {
-        const r = rows.find(x => x.idSuffix === suffix) || {left:0,right:0,cLeft:0,cRight:0};
-        const c = calcRow(r);
-        const node = document.createElement("div");
-        node.className = "node";
-        node.innerHTML = `
-          <div class="nid">${base}.${suffix}</div>
-          <div class="row"><span>왼쪽 합계</span><span>${fmt(c.leftSum)}</span></div>
-          <div class="row"><span>오른쪽 합계</span><span>${fmt(c.rightSum)}</span></div>
-          <div class="row" style="margin-top:6px;"><span>인정실적</span><span>${fmt(c.인정실적)}</span></div>
-        `;
-        return node;
-      };
-
-      // 기본 트리: 001 루트, 002(왼쪽), 003(오른쪽)
-      const tree = document.createElement("div");
-      tree.className = "tree";
-
-      const n1 = makeNode("001");
-      tree.appendChild(n1);
-
-      // 002/003이 있으면 링크+노드 표시
-      if(rows.length >= 2){
-        const link1 = document.createElement("div");
-        link1.className = "link";
-        tree.appendChild(link1);
-        tree.appendChild(makeNode("002"));
-      }
-      if(rows.length >= 3){
-        const link2 = document.createElement("div");
-        link2.className = "link";
-        tree.appendChild(link2);
-        tree.appendChild(makeNode("003"));
-      }
-
-      // 004 이상은 아래로 계속 추가(요청하신 “BC 추가되면 계속 아래로” 대응)
-      if(rows.length >= 4){
-        const extraWrap = document.createElement("div");
-        extraWrap.style.display = "flex";
-        extraWrap.style.flexWrap = "wrap";
-        extraWrap.style.gap = "12px";
-        extraWrap.style.marginTop = "12px";
-
-        rows.slice(3).forEach(r => {
-          extraWrap.appendChild(makeNode(r.idSuffix));
-        });
-
-        diagramEl.appendChild(tree);
-        diagramEl.appendChild(extraWrap);
-        return;
-      }
-
-      diagramEl.appendChild(tree);
-    }
-
-    function updateAll(){
-      renderTable();
-      renderKpi();
-      renderDiagram();
-    }
-
-    // ===== 액션 =====
-    function addBc(){
-      const next = String(rows.length + 1).padStart(3, "0"); // 001, 002...
-      rows.push({ idSuffix: next, left:0, right:0, cLeft:0, cRight:0 });
-      updateAll();
-    }
-
-    function resetAll(){
-      // 점수만 초기화(행은 유지)
-      rows = rows.map(r => ({...r, left:0, right:0, cLeft:0, cRight:0}));
-      updateAll();
-    }
-
-    // ===== 초기 =====
-    // 기본 001 행 하나 생성
-    rows = [{ idSuffix:"001", left:0, right:0, cLeft:0, cRight:0 }];
-    renderTable();
-    renderKpi();
-
-    // 버튼 이벤트
-    $("btnCreate").addEventListener("click", () => {
-      const v = (userIdEl.value || "").trim();
-      if(!v){
-        alert("사용자 ID를 입력해 주세요.");
-        userIdEl.focus();
-        return;
-      }
-      // 생성 시: 최소 001은 보장, 도식 렌더
-      if(rows.length === 0) rows = [{ idSuffix:"001", left:0, right:0, cLeft:0, cRight:0 }];
-      updateAll();
+function buildOrgTree(rootPos, childrenMap){
+  function dfs(pos){
+    const node = { pos, side: null, children: [] };
+    const kids = childrenMap[pos] || [];
+    node.children = kids.map(k => {
+      const child = dfs(k.pos);
+      child.side = k.side;
+      return child;
     });
+    return node;
+  }
+  return dfs(rootPos);
+}
 
-    $("btnReset").addEventListener("click", () => resetAll());
-    $("btnAddBc").addEventListener("click", () => addBc());
+function getNodeMetrics(pos){
+  const totalL = getVal(`sumL${pos}`);
+  const totalR = getVal(`sumR${pos}`);
 
-    // 엔터로 생성
-    userIdEl.addEventListener("keydown", (e) => {
-      if(e.key === "Enter") $("btnCreate").click();
-    });
-  </script>
+  const scoreL = (pos === "001") ? getVal("l001") : getVal(`displ${pos}`);
+  const scoreR = (pos === "001") ? getVal("r001") : getVal(`dispr${pos}`);
+
+  const carryL = getVal(`cl${pos}`);
+  const carryR = getVal(`cr${pos}`);
+
+  return { totalL, totalR, scoreL, scoreR, carryL, carryR };
+}
+
+function makeOrgNode(title, meta, pillLR, pos){
+  const m = getNodeMetrics(pos);
+
+  const capL = (m.totalL >= 5000) ? "cap" : "";
+  const capR = (m.totalR >= 5000) ? "cap" : "";
+
+  const node = document.createElement("div");
+  node.className = "orgNode";
+  node.innerHTML = `
+    <div class="id">${title}</div>
+    <div class="meta">${meta}</div>
+
+    <div class="nodeTotals">
+      <div class="scoreBadge L ${capL}"><span class="k">L</span>${fmtInt(m.totalL)}</div>
+      <div class="scoreBadge R ${capR}"><span class="k">R</span>${fmtInt(m.totalR)}</div>
+    </div>
+
+    <div class="nodeLine main">
+      <span class="val">${fmtInt(m.scoreL)}</span>
+      <span class="val">${fmtInt(m.scoreR)}</span>
+    </div>
+
+    <div class="nodeLine carry">
+      <div class="carryCell">
+        <div class="carryLabel">이월</div>
+        <span class="carryVal">${fmtInt(m.carryL)}</span>
+      </div>
+      <span class="val">${fmtInt(m.carryR)}</span>
+    </div>
+
+    ${pillLR ? `<div class="sidePill ${pillLR}">${pillLR}</div>` : ``}
+  `;
+  return node;
+}
+
+function renderOrgChart(treeNode, userId, isRoot){
+  const container = document.createElement("div");
+  container.className = "orgTree" + ((treeNode.children?.length) ? " hasChildren" : "");
+
+  const label = `[${userId}.${treeNode.pos}]`;
+  const meta = isRoot ? "루트 센터" : "추가 센터";
+  const pill = isRoot ? null : treeNode.side;
+
+  container.appendChild(makeOrgNode(label, meta, pill, treeNode.pos));
+
+  const kids = treeNode.children || [];
+  if(kids.length){
+    const leftKids = kids.filter(k => k.side === "L");
+    const rightKids = kids.filter(k => k.side === "R");
+
+    const lanes = document.createElement("div");
+    lanes.className = "orgChildrenLR";
+
+    const laneL = document.createElement("div");
+    laneL.className = "orgLane L";
+    laneL.innerHTML = `
+      <div class="orgLaneTitle"><span class="lanePill L">L</span></div>
+      <div class="orgLaneBody"></div>
+    `;
+
+    const laneR = document.createElement("div");
+    laneR.className = "orgLane R";
+    laneR.innerHTML = `
+      <div class="orgLaneTitle"><span class="lanePill R">R</span></div>
+      <div class="orgLaneBody"></div>
+    `;
+
+    const laneLBody = laneL.querySelector(".orgLaneBody");
+    const laneRBody = laneR.querySelector(".orgLaneBody");
+
+    leftKids.forEach(ch => laneLBody.appendChild(renderOrgChart(ch, userId, false)));
+    rightKids.forEach(ch => laneRBody.appendChild(renderOrgChart(ch, userId, false)));
+
+    lanes.appendChild(laneL);
+    lanes.appendChild(laneR);
+    container.appendChild(lanes);
+  }
+
+  return container;
+}
+
+function renderDiagram(){
+  const id = getUserId();
+  const diagramEl = $("diagram");
+  if(!diagramEl) return;
+
+  const childrenMap = buildChildrenMap();
+  const leftTree  = buildOrgTree("002", childrenMap);
+  const rightTree = buildOrgTree("003", childrenMap);
+
+  diagramEl.innerHTML = "";
+
+  const wrap = document.createElement("div");
+  wrap.className = "orgWrap";
+
+  const top = document.createElement("div");
+  top.className = "orgTop";
+  top.appendChild(makeOrgNode(`[${id}.001]`, "최상위 센터", null, "001"));
+  wrap.appendChild(top);
+
+  const row = document.createElement("div");
+  row.className = "orgRow";
+
+  const leftCol = document.createElement("div");
+  leftCol.className = "orgCol";
+  leftCol.innerHTML = `
+    <div class="orgColTitle">
+      <span>왼쪽 트리</span>
+      <span class="orgBadge">루트: ${id}.002</span>
+    </div>
+  `;
+  leftCol.appendChild(renderOrgChart(leftTree, id, true));
+  row.appendChild(leftCol);
+
+  const rightCol = document.createElement("div");
+  rightCol.className = "orgCol";
+  rightCol.innerHTML = `
+    <div class="orgColTitle">
+      <span>오른쪽 트리</span>
+      <span class="orgBadge">루트: ${id}.003</span>
+    </div>
+  `;
+  rightCol.appendChild(renderOrgChart(rightTree, id, true));
+  row.appendChild(rightCol);
+
+  wrap.appendChild(row);
+  diagramEl.appendChild(wrap);
+
+  requestAnimationFrame(() => alignDiagramNumbers());
+}
+
+/* ===== 계산(연쇄 합산 포함) ===== */
+function calc(){
+  const baseL = {}, baseR = {};
+  const addL = {}, addR = {};
+
+  for(let n=2; n<=centerCount; n++){
+    const p = String(n).padStart(3,"0");
+    baseL[p] = getVal(`l${p}`);
+    baseR[p] = getVal(`r${p}`);
+    addL[p] = 0;
+    addR[p] = 0;
+  }
+
+  for(let n=centerCount; n>=4; n--){
+    const src = String(n).padStart(3,"0");
+    const t = mergeTarget[src];
+    if(!t) continue;
+
+    const totalSrc = (baseL[src] + baseR[src]) + (addL[src] + addR[src]);
+
+    if(t.startsWith("l")){
+      const tp = t.slice(1);
+      if(addL[tp] !== undefined) addL[tp] += totalSrc;
+    } else if(t.startsWith("r")){
+      const tp = t.slice(1);
+      if(addR[tp] !== undefined) addR[tp] += totalSrc;
+    }
+  }
+
+  const disp = {};
+  for(let n=2; n<=centerCount; n++){
+    const p = String(n).padStart(3,"0");
+    const L = baseL[p] + addL[p];
+    const R = baseR[p] + addR[p];
+    disp[p] = {L, R};
+
+    setText(`addl${p}`, fmtInt(addL[p]));
+    setText(`addr${p}`, fmtInt(addR[p]));
+    setText(`displ${p}`, fmtInt(L));
+    setText(`dispr${p}`, fmtInt(R));
+  }
+
+  const inL001 = getVal("l001_in");
+  const inR001 = getVal("r001_in");
+
+  const subL001 = ((disp["002"]?.L ?? 0) + (disp["002"]?.R ?? 0));
+  const subR001 = ((disp["003"]?.L ?? 0) + (disp["003"]?.R ?? 0));
+
+  const L001 = subL001 + inL001;
+  const R001 = subR001 + inR001;
+
+  setText("l001", fmtInt(L001));
+  setText("r001", fmtInt(R001));
+
+  setText("addl001", fmtInt(subL001));
+  setText("addr001", fmtInt(subR001));
+
+  let totalAck = 0;
+  let totalBonus = 0;
+
+  for(let n=1; n<=centerCount; n++){
+    const p = String(n).padStart(3,"0");
+
+    let L = 0, R = 0;
+    if(p === "001"){
+      L = getVal("l001");
+      R = getVal("r001");
+    } else {
+      L = disp[p].L;
+      R = disp[p].R;
+    }
+
+    const sumL = Math.min(L + getVal(`cl${p}`), 5000);
+    const sumR = Math.min(R + getVal(`cr${p}`), 5000);
+
+    displayWithLimit($(`sumL${p}`), sumL);
+    displayWithLimit($(`sumR${p}`), sumR);
+
+    const minv = Math.min(sumL, sumR);
+    const ack = (minv >= 125) ? minv : 0;
+
+    setText(`ack${p}`, fmtInt(ack));
+
+    const bonus = ack * 0.2;
+    setText(`bonus${p}`, ack ? fmt1(bonus) : "0.0");
+
+    totalAck += ack;
+    totalBonus += bonus;
+  }
+
+  setText("totalAck", fmtInt(totalAck));
+  setText("totalBonus", fmt1(totalBonus));
+
+  const krw = Math.round(totalBonus * 1150);
+  setText("totalBonusKrw", fmtInt(krw));
+
+  renderDiagram();
+}
+</script>
+
 </body>
 </html>
